@@ -1,35 +1,35 @@
-import mysql.connector
+import sqlite3
 
 def get_connection():
-    return mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password="",
-        database="ai_competency_system"
-    )
+    return sqlite3.connect("database.db")
 
-# =========================
-# REGISTER USER (FIXED)
-# =========================
+
 def register_user(username, password, role):
-
     conn = get_connection()
     cursor = conn.cursor()
 
     try:
         username = username.strip().lower()
 
-        # check duplicate
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE,
+                password TEXT,
+                role TEXT
+            )
+        """)
+
         cursor.execute(
-            "SELECT id FROM users WHERE LOWER(username)=%s",
+            "SELECT id FROM users WHERE username=?",
             (username,)
         )
 
         if cursor.fetchone():
-            return False  # already exists
+            return False
 
         cursor.execute(
-            "INSERT INTO users (username, password, role) VALUES (%s, %s, %s)",
+            "INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
             (username, password, role)
         )
 
@@ -44,39 +44,28 @@ def register_user(username, password, role):
         conn.close()
 
 
-# =========================
-# LOGIN USER
-# =========================
 def login_user(username, password):
-
     conn = get_connection()
     cursor = conn.cursor()
 
-    try:
-        username = username.strip().lower()
+    username = username.strip().lower()
 
-        cursor.execute(
-            "SELECT * FROM users WHERE username=%s AND password=%s",
-            (username, password)
-        )
+    cursor.execute(
+        "SELECT * FROM users WHERE username=? AND password=?",
+        (username, password)
+    )
 
-        return cursor.fetchone()
-
-    finally:
-        conn.close()
+    user = cursor.fetchone()
+    conn.close()
+    return user
 
 
-# =========================
-# GET ALL STUDENTS (NEW ⭐)
-# =========================
 def get_all_students():
-
     conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor()
 
     cursor.execute("SELECT username FROM users WHERE role='student'")
-
-    students = cursor.fetchall()
+    students = [{"username": row[0]} for row in cursor.fetchall()]
 
     conn.close()
     return students
