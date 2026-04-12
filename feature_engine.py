@@ -1,5 +1,5 @@
 
-import textstat
+
 import re
 
 # =========================
@@ -44,7 +44,7 @@ def extract_features(text):
         if len(text) < 20:
             readability = 0  # too short for meaningful score
         else:
-            readability = textstat.flesch_reading_ease(text)
+            readability = round(206.835 - (1.015 * avg_sentence_length), 2)
     except:
         readability = 0
 
