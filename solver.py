@@ -1,13 +1,12 @@
-from openai import OpenAI
-import os
 import json
 import re
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
+# =========================
+# SIMPLE OFFLINE SOLVER
+# =========================
 
 def extract_json(text):
-    """Extract JSON even if GPT adds extra text"""
+    """Extract JSON safely if needed"""
     try:
         match = re.search(r"\{.*\}", text, re.DOTALL)
         if match:
@@ -17,49 +16,48 @@ def extract_json(text):
 
 
 def solve_question(question):
+    """
+    Offline fallback solver (no AI API needed)
+    You can later upgrade this with ML or rule-based logic.
+    """
 
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": """
-You are a mathematics solver for lower secondary curriculum.
+        question = str(question).lower()
 
-IMPORTANT RULES:
-- Solve all word problems step by step internally
-- Output ONLY valid JSON
-- No explanation, no markdown, no text outside JSON
+        # =========================
+        # SIMPLE MATH HANDLING
+        # =========================
 
-FORMAT RULES:
+        # Example: addition
+        if "+" in question:
+            nums = re.findall(r"\d+", question)
+            if len(nums) >= 2:
+                answer = sum(map(int, nums))
+                return {"answer": answer}
 
-If multi-part question:
-{
-  "a": value,
-  "b": value,
-  "c": value
-}
+        # Example: subtraction
+        if "-" in question:
+            nums = re.findall(r"\d+", question)
+            if len(nums) >= 2:
+                answer = int(nums[0]) - int(nums[1])
+                return {"answer": answer}
 
-If single answer:
-{
-  "answer": value
-}
-"""
-                },
-                {"role": "user", "content": question}
-            ]
-        )
+        # Example: multiplication
+        if "x" in question or "*" in question:
+            nums = re.findall(r"\d+", question)
+            if len(nums) >= 2:
+                answer = int(nums[0]) * int(nums[1])
+                return {"answer": answer}
 
-        content = response.choices[0].message.content
-
-        result = extract_json(content)
-
-        if result:
-            return result
-
-        return None
+        # =========================
+        # DEFAULT RESPONSE
+        # =========================
+        return {
+            "answer": "Unable to solve automatically"
+        }
 
     except Exception as e:
         print("Solver error:", e)
-        return None
+        return {
+            "answer": "Error in solving"
+        }
