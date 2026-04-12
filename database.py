@@ -1,25 +1,38 @@
 import sqlite3
 
+# =========================
+# CONNECTION + AUTO TABLE INIT
+# =========================
 def get_connection():
-    return sqlite3.connect("database.db")
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+
+    # create table once safely
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE,
+            password TEXT,
+            role TEXT
+        )
+    """)
+
+    conn.commit()
+    return conn
 
 
+# =========================
+# REGISTER USER
+# =========================
 def register_user(username, password, role):
     conn = get_connection()
     cursor = conn.cursor()
 
     try:
         username = username.strip().lower()
+        role = role.strip().lower()
 
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE,
-                password TEXT,
-                role TEXT
-            )
-        """)
-
+        # check if user exists
         cursor.execute(
             "SELECT id FROM users WHERE username=?",
             (username,)
@@ -28,6 +41,7 @@ def register_user(username, password, role):
         if cursor.fetchone():
             return False
 
+        # insert user
         cursor.execute(
             "INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
             (username, password, role)
@@ -44,6 +58,9 @@ def register_user(username, password, role):
         conn.close()
 
 
+# =========================
+# LOGIN USER
+# =========================
 def login_user(username, password):
     conn = get_connection()
     cursor = conn.cursor()
@@ -60,6 +77,9 @@ def login_user(username, password):
     return user
 
 
+# =========================
+# GET ALL STUDENTS
+# =========================
 def get_all_students():
     conn = get_connection()
     cursor = conn.cursor()
