@@ -3,11 +3,17 @@ import pandas as pd
 import re
 
 from model_engine import evaluate_answer
-from database import register_user, login_user, get_all_students
+from database import register_user, login_user, get_all_students, init_db
 from assignment_engine import auto_assign_questions
 
 app = Flask(__name__)
 app.secret_key = "AI_COMPETENCY_SYSTEM_2026"
+
+# =========================
+# INIT DATABASE (IMPORTANT FIX)
+# =========================
+with app.app_context():
+    init_db()
 
 results_store = []
 
@@ -33,6 +39,7 @@ def login():
         user = login_user(username, password)
 
         if user:
+            session.clear()  # prevent session conflicts
             session['user'] = user[1]
             session['role'] = user[3]
 
@@ -60,11 +67,12 @@ def register():
         success = register_user(username, password, role)
 
         if success:
-            return redirect(url_for('login'))  # ✅ AUTO GO TO LOGIN
+            return redirect(url_for('login'))
         else:
             return render_template("register.html", error="User already exists")
 
     return render_template("register.html")
+
 
 # =========================
 # NORMALIZER
@@ -88,15 +96,9 @@ def evaluate():
     answer = request.form.get('answer')
     student = session.get("user")
 
-    # =========================
-    # LOAD DATASET
-    # =========================
     df = pd.read_excel("ALL_with_features.xlsx")
     df.columns = df.columns.str.strip()
 
-    # =========================
-    # FIND QUESTION IN DATASET
-    # =========================
     question_norm = normalize_text(question)
 
     row = df[df["Item"].apply(lambda x: normalize_text(x)) == question_norm]
@@ -110,32 +112,21 @@ def evaluate():
         bloom = row.get("Bloom_Level", "N/A")
         dok = row.get("DoK_Level", "N/A")
     else:
-        construct = "N/A"
-        bloom = "N/A"
-        dok = "N/A"
+        construct = bloom = dok = "N/A"
 
-    # =========================
-    # MODEL EVALUATION
-    # =========================
     result = evaluate_answer(question, answer)
 
     results_store.append({
         "student": student,
         "question": question,
-
         "student_answer": result.get("student_answer"),
         "expected_answer": result.get("expected_answer"),
         "feedback": result.get("feedback", []),
-
         "score": result.get("score", 0),
         "competency": result.get("competency", "Low"),
-
-        # dataset metadata
         "construct": construct,
         "bloom": bloom,
         "dok": dok,
-
-        # analytics
         "readability": result.get("readability", 0),
         "lexical_diversity": result.get("lexical_diversity", 0),
         "avg_sentence_length": result.get("avg_sentence_length", 0)
@@ -145,7 +136,7 @@ def evaluate():
 
 
 # =========================
-# STUDENT DONE PAGE
+# STUDENT DONE
 # =========================
 @app.route('/student_done')
 def student_done():
@@ -168,7 +159,6 @@ def teacher_dashboard():
 
     search = request.args.get("search", "")
 
-    # ONLY FILTER BY CONSTRUCT
     questions = []
     if search:
         questions = df[df["Construct"].str.contains(search, case=False, na=False)].to_dict(orient="records")
@@ -184,7 +174,7 @@ def teacher_dashboard():
 
 
 # =========================
-# RESULTS PAGE
+# RESULTS
 # =========================
 @app.route('/teacher/results')
 def teacher_results():
@@ -198,7 +188,7 @@ def teacher_results():
 # =========================
 # ASSIGN QUESTION
 # =========================
-@app.route('/assign/<item_id>', methods=['GET'])
+@app.route('/assign/<item_id>')
 def assign_question(item_id):
 
     if session.get("role") != "teacher":
@@ -264,13 +254,6 @@ def auto_assign():
 def logout():
     session.clear()
     return redirect(url_for('login'))
-
-# =========================
-# FORGOT PASSWORD PAGE
-# =========================
-@app.route('/forgot-password', methods=['GET'])
-def forgot_password():
-    return render_template("forgot_password.html")
 
 
 # =========================

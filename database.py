@@ -1,24 +1,31 @@
-import sqlite3
+import os
+import psycopg2
 
 # =========================
-# CONNECTION + AUTO TABLE INIT
+# DATABASE CONNECTION
 # =========================
 def get_connection():
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
+    return psycopg2.connect(os.environ["DATABASE_URL"])
 
-    # create table once safely
-    cursor.execute("""
+
+# =========================
+# INIT DATABASE
+# =========================
+def init_db():
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE,
-            password TEXT,
-            role TEXT
+            id SERIAL PRIMARY KEY,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            role TEXT NOT NULL
         )
     """)
 
     conn.commit()
-    return conn
+    conn.close()
 
 
 # =========================
@@ -26,24 +33,19 @@ def get_connection():
 # =========================
 def register_user(username, password, role):
     conn = get_connection()
-    cursor = conn.cursor()
+    cur = conn.cursor()
+
+    username = username.strip().lower()
+    role = role.strip().lower()
 
     try:
-        username = username.strip().lower()
-        role = role.strip().lower()
-
         # check if user exists
-        cursor.execute(
-            "SELECT id FROM users WHERE username=?",
-            (username,)
-        )
-
-        if cursor.fetchone():
+        cur.execute("SELECT id FROM users WHERE username = %s", (username,))
+        if cur.fetchone():
             return False
 
-        # insert user
-        cursor.execute(
-            "INSERT INTO users (username, password, role) VALUES (?, ?, ?)",
+        cur.execute(
+            "INSERT INTO users (username, password, role) VALUES (%s, %s, %s)",
             (username, password, role)
         )
 
@@ -63,29 +65,30 @@ def register_user(username, password, role):
 # =========================
 def login_user(username, password):
     conn = get_connection()
-    cursor = conn.cursor()
+    cur = conn.cursor()
 
     username = username.strip().lower()
 
-    cursor.execute(
-        "SELECT * FROM users WHERE username=? AND password=?",
+    cur.execute(
+        "SELECT * FROM users WHERE username = %s AND password = %s",
         (username, password)
     )
 
-    user = cursor.fetchone()
+    user = cur.fetchone()
     conn.close()
     return user
 
 
 # =========================
-# GET ALL STUDENTS
+# GET STUDENTS
 # =========================
 def get_all_students():
     conn = get_connection()
-    cursor = conn.cursor()
+    cur = conn.cursor()
 
-    cursor.execute("SELECT username FROM users WHERE role='student'")
-    students = [{"username": row[0]} for row in cursor.fetchall()]
+    cur.execute("SELECT username FROM users WHERE role = 'student'")
+    rows = cur.fetchall()
 
     conn.close()
-    return students
+
+    return [{"username": r[0]} for r in rows]
